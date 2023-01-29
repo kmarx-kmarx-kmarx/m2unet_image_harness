@@ -6,11 +6,7 @@ from skimage.filters import threshold_otsu
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import torch
 
-# import cv2
-
-
-
-def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0):
+def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0, overlap=16):
     '''
     Run inference on a set of images one at a time. 
     This function automatically tiles the image to sz x sz and stitches them back together
@@ -26,15 +22,20 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
                     less than 1: decrease separation between masks
         sz: integer, width/height to crop the image to. Should be a power of 2
                     1024 tends to work but higher/lower values can be used based on gpu memory
+        overlap: integer, pixel width shared between adjacent crops. Overlaps remove segmentation artifacts
+                    along the edge of the image. overlap must be an even number.
 
     Returns:
         masks: np array of binary masks,
                     n_images x img_width x img_height
     '''
+    # make overlap even if it isn't already
+    overlap += overlap%2
+
     n_im, im_w, im_h = images.shape
     # preallocate memory for image stack
-    nx = int(np.ceil(im_w/sz))
-    ny = int(np.ceil(im_h/sz))
+    nx = int(np.ceil((im_w-overlap)/(sz-overlap)))
+    ny = int(np.ceil((im_h-overlap)/(sz-overlap)))
     n_slices = int(n_im * nx * ny)
     # pad border crops with zeros to make images nx*sz x ny*sz
     image_padded = np.zeros((n_im, sz*nx, sz*ny))
@@ -46,8 +47,13 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         y = int(np.floor(i/nx))
         z = int(np.floor(y/ny))
         y = y % ny
+        # shift x_0, y_0 over by overlap for x > 0, y > 0
+        x_0 = (sz-overlap)*x 
+        y_0 = (sz-overlap)*y
+        x_1 = x_0 + sz
+        y_1 = y_0 + sz
 
-        image_stack[i, :, :] = image_padded[z, sz*x:sz*(x+1), sz*y:sz*(y+1)]
+        image_stack[i, :, :] = image_padded[z, x_0:x_1, y_0:y_1]
     
     # run inference
     mask_stack = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale)
@@ -59,8 +65,21 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         z = int(np.floor(y/ny))
         y = y % ny
 
-        image_padded[z, sz*x:sz*(x+1), sz*y:sz*(y+1)] = mask_stack[i, :, :]
+        d = int(overlap/2)
+        
+        # slice mask_stack: don't get overlaps unless we are at the end
+        x_0m = 0 if x==0 else d
+        y_0m = 0 if y==0 else d
+        x_1m = sz if x==(nx-1) else sz-d
+        y_1m = sz if y==(ny-1) else sz-d
+        # slice image_padded
+        x_0 = 0 if x==0 else x*sz - (2*x-1)*d
+        y_0 = 0 if y==0 else y*sz - (2*y-1)*d
+        x_1 = x_0+x_1m-x_0m
+        y_1 = y_0+y_1m-y_0m
 
+        image_padded[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m]
+        
     output = image_padded[:, :im_w, :im_h]
 
     return output
