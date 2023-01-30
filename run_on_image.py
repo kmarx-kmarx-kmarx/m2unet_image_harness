@@ -37,23 +37,33 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
     nx = int(np.ceil((im_w-overlap)/(sz-overlap)))
     ny = int(np.ceil((im_h-overlap)/(sz-overlap)))
     n_slices = int(n_im * nx * ny)
-    # pad border crops with zeros to make images nx*sz x ny*sz
-    image_padded = np.zeros((n_im, sz*nx, sz*ny))
-    image_padded[:, :im_w, :im_h] = images
     # slice images down to size and put them in the stack
     image_stack = np.zeros((n_slices, sz, sz))
+    dx, dy = (0, 0)
     for i in range(n_slices):
         x = i % nx
         y = int(np.floor(i/nx))
         z = int(np.floor(y/ny))
         y = y % ny
-        # shift x_0, y_0 over by overlap for x > 0, y > 0
-        x_0 = (sz-overlap)*x 
-        y_0 = (sz-overlap)*y
-        x_1 = x_0 + sz
-        y_1 = y_0 + sz
 
-        image_stack[i, :, :] = image_padded[z, x_0:x_1, y_0:y_1]
+        # handle case x=(nx-1), y=(ny-1) separately 
+        if x == (nx-1):
+            x_0 = im_w-sz
+            x_1 = im_w
+            dx = ((sz-overlap)*x)-x_0
+        else:
+            x_0 = (sz-overlap)*x 
+            x_1 = x_0 + sz
+        
+        if y == (ny-1):
+            y_0 = im_h-sz
+            y_1 = im_h
+            dy = ((sz-overlap)*y)-y_0
+        else:
+            y_0 = (sz-overlap)*y 
+            y_1 = y_0 + sz
+
+        image_stack[i, :, :] = images[z, x_0:x_1, y_0:y_1]
     
     # run inference
     mask_stack = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale)
@@ -66,23 +76,60 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         y = y % ny
 
         d = int(overlap/2)
-        
+
         # slice mask_stack: don't get overlaps unless we are at the end
-        x_0m = 0 if x==0 else d
-        y_0m = 0 if y==0 else d
-        x_1m = sz if x==(nx-1) else sz-d
-        y_1m = sz if y==(ny-1) else sz-d
-        # slice image_padded
-        x_0 = 0 if x==0 else x*sz - (2*x-1)*d
-        y_0 = 0 if y==0 else y*sz - (2*y-1)*d
-        x_1 = x_0+x_1m-x_0m
-        y_1 = y_0+y_1m-y_0m
+        if x == 0:
+            x_0m = 0
+            x_1m = sz-d
+        elif x==(nx-1):
+            x_0m = dx-2*overlap
+            x_1m = sz
+        else:
+            x_0m = d
+            x_1m = sz-d
 
-        image_padded[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m]
+        # slice images
+        if x == 0:
+            x_0 = 0
+        elif x == (nx-1):
+            x_0 = im_w - dx + d
+        else:
+            x_0 = x*sz - (2*x-1)*d
+        if y == 0:
+            y_0 = 0
+        elif y == (nx-1):
+            y_0 = im_h - dy + d
+        else:
+            y_0 = y*sz - (2*y-1)*d
+
+        if y == 0:
+            y_0m = 0
+            y_1m = sz-d
+        elif y==(nx-1):
+            y_0m = dy-2*overlap
+            y_1m = sz
+        else:
+            y_0m = d
+            y_1m = sz-d
+
+        # finish slicing images
+        if x == (nx-1):
+            x_1 = im_w
+            x_0 = x_1-x_1m+x_0m
+        else:
+            x_1 = x_0+x_1m-x_0m
+        if y == (ny-1):
+            y_1 = im_h
+            y_0 = y_1-y_1m+y_0m
+        else:
+            y_1 = y_0+y_1m-y_0m
+
+        # print(f"{x},{y},{z}: ({x_0},{x_1}->{x_1-x_0}), ({y_0},{y_1}->{y_1-y_0}), ({x_0m},{x_1m}->{x_1m-x_0m}), ({y_0m},{y_1m}->{y_1m-y_0m}), ({dx},{dy})")
+
+        images[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m]
         
-    output = image_padded[:, :im_w, :im_h]
 
-    return output
+    return images
 
 
 def inference_on_sized_image_stack(images, model_root, model_name, threshold_scale=1.0):
@@ -140,13 +187,3 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
         outputs[i,:,:] = mask
     
     return outputs
-
-# if __name__ == "__main__":
-#     im = cv2.imread("0_1_0_BF_LED_matrix_left_half.bmp")[:,:,0]
-#     images = np.stack([im]*5, axis=0)
-#     images[3,:,:] = np.transpose(images[3,:,:])
-
-#     outs = inference_on_image_stack(images, ".", "200_model_14.pth", sz=1024, threshold_scale=1.0)
-
-#     for i, out in enumerate(outs):
-#         cv2.imwrite(f"{i}.bmp", out)
