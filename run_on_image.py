@@ -6,7 +6,7 @@ from skimage.filters import threshold_otsu
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import torch
 from tqdm import tqdm
-
+import cv2
 def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0, overlap=16):
     '''
     Run inference on a set of images one at a time. 
@@ -69,6 +69,8 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
     mask_stack = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale)
 
     # convert back to images
+    # preallocate memory for image stack
+    output = np.zeros(images.shape, dtype=bool)
     for i in range(n_slices):
         x = i % nx
         y = int(np.floor(i/nx))
@@ -125,10 +127,9 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
             y_1 = y_0+y_1m-y_0m
 
         # print(f"{x},{y},{z}: ({x_0},{x_1}->{x_1-x_0}), ({y_0},{y_1}->{y_1-y_0}), ({x_0m},{x_1m}->{x_1m-x_0m}), ({y_0m},{y_1m}->{y_1m-y_0m}), ({dx},{dy})")
-        output = np.zeros(images.shape, dtype=bool)
-        # preallocate memory for image stack
+        
         output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m] # * (i+1)/(n_slices+1)
-
+    
     return output
 
 
@@ -179,7 +180,7 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
         output = np.clip(results[0] * 255, 0, 255)[:, :, 0].astype('uint8')
         # get threshold 
         threshold = threshold_otsu(output) * threshold_scale
-        mask = ((output > threshold) * 255).astype('uint8')
+        mask = (output > threshold)
 
         # save result
         outputs[i,:,:] = mask
