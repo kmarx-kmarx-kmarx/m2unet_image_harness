@@ -47,7 +47,7 @@ def main():
         for i, c in enumerate(product(range(acquisition_parameters['Nx']), range(acquisition_parameters['Ny']))):
             x, y = c
             # Load the images and generate a DPC
-            file_id = f"{x}_{y}_0"
+            file_id = f"{y}_{x}_0"
             dpc = get_dpc(data_path, dataset, file_id, flatfield_left, flatfield_right)
             dpc_array[i, :, :] = dpc
         dt = time.time() - t0
@@ -70,7 +70,7 @@ def main():
         for i, c in enumerate(product(range(acquisition_parameters['Nx']), range(acquisition_parameters['Ny']))):
             x, y = c
             # Load the images and generate a DPC
-            file_id = f"{x}_{y}_0_mask.npz"
+            file_id = f"{y}_{x}_0_mask.npz"
             fname = os.path.join(savepath, file_id)
             np.savez(fname, mask=result[i, :, :])
         dt = time.time() - t2
