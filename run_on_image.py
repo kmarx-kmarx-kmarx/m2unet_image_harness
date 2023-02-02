@@ -5,7 +5,7 @@ from skimage.filters import threshold_otsu
 # specify the gpu number
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import torch
-import logging
+from tqdm import tqdm
 
 def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0, overlap=16):
     '''
@@ -152,23 +152,18 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
                     n_images x img_width x img_height
     '''
     # setup
-    logging.debug("1")
     torch.cuda.empty_cache()
-    logging.debug("2")
     # Load the model
     model = M2UnetInteractiveModel(
         model_dir=model_root,
         default_save_path=os.path.join(model_root, model_name),
         pretrained_model=os.path.join(model_root, model_name)
     )
-    logging.debug("3")
     # initialize result array
     outputs = np.zeros(images.shape, dtype=bool)
-    logging.debug("4")
 
     # loop through images
-    for i, img in enumerate(images):
-        logging.debug("5")
+    for i, img in enumerate(tqdm(images)):
         # normalize the image
         img = (img - np.mean(img)) /np.std(img)
         # format data
@@ -188,5 +183,4 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
 
         # save result
         outputs[i,:,:] = mask
-    logging.debug("6")
     return outputs.astype(bool)

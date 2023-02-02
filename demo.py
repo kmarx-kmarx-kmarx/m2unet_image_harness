@@ -3,10 +3,10 @@ import numpy as np
 from run_on_image import inference_on_image_stack
 import os
 
-data_dir = "path/to/dpc/images"
-ff_dir = "path/to/flatfield/npy"
-model_root = "/path/to/model"
-model_name = "modelname.pth"
+data_dir = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/data"
+ff_dir = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud"
+model_root = "."
+model_name = "200_model_14.pth"
 
 def generate_dpc(I_1,I_2):
     I_dpc = np.divide(I_1-I_2,I_1+I_2)
@@ -27,8 +27,10 @@ rht = rht.astype('float')/255
 
 img = generate_dpc(lft, rht)
 
+cv2.imwrite("orig.bmp", img)
+
 img = np.expand_dims(img, axis=0)
 
-result = inference_on_image_stack(img, model_root, model_name, overlap=18)
+result = inference_on_image_stack(img, model_root, model_name)
 
-cv2.imwrite("test.bmp", result[0,:,:])
+cv2.imwrite("tst.bmp", result[0,:,:])

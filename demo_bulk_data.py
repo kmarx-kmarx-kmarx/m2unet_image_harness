@@ -18,7 +18,7 @@ def main():
     model_path = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/m2unet_model_8/"
     model_name = "model_70_13.pth"
     dataset_file = 'local_datasets.txt'
-    n_batch = 100
+    n_batch = 50
     # illumination correction
     flatfield_left = np.load('flatfield_left.npy')
     flatfield_right = np.load('flatfield_right.npy')
@@ -53,8 +53,13 @@ def main():
         dt = time.time() - t0
         t1 = time.time()
         logging.debug(f"Took {dt} seconds to load {n_images} images from {dataset}")
-        # Batch segment the dpc_array
-        result = inference_on_image_stack(dpc_array, model_path, model_name)
+        # Batch segment the dpc_array. Break into smaller chunks if necessary
+        result = np.zeros((n_images, width, height), dtype=bool)
+        index = 0
+        while index < n_images:
+            end_idx = min(index + n_batch, n_images)
+            result[index:end_idx, :, :] = inference_on_image_stack(dpc_array[index:end_idx, :, :], model_path, model_name)
+            index = end_idx
         dt = time.time() - t1
         t2 = time.time()
         logging.debug(f"Took {dt} seconds to segment {n_images} images")
