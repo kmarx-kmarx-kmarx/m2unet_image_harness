@@ -5,6 +5,7 @@ from skimage.filters import threshold_otsu
 # specify the gpu number
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import torch
+import logging
 
 def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0, overlap=16):
     '''
@@ -33,12 +34,11 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
     overlap += overlap%2
 
     n_im, im_w, im_h = images.shape
-    # preallocate memory for image stack
     nx = int(np.ceil((im_w-overlap)/(sz-overlap)))
     ny = int(np.ceil((im_h-overlap)/(sz-overlap)))
     n_slices = int(n_im * nx * ny)
     # slice images down to size and put them in the stack
-    image_stack = np.zeros((n_slices, sz, sz))
+    image_stack = np.zeros((n_slices, sz, sz), dtype=np.uint8)
     dx, dy = (0, 0)
     for i in range(n_slices):
         x = i % nx
@@ -125,11 +125,11 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
             y_1 = y_0+y_1m-y_0m
 
         # print(f"{x},{y},{z}: ({x_0},{x_1}->{x_1-x_0}), ({y_0},{y_1}->{y_1-y_0}), ({x_0m},{x_1m}->{x_1m-x_0m}), ({y_0m},{y_1m}->{y_1m-y_0m}), ({dx},{dy})")
+        output = np.zeros(images.shape, dtype=bool)
+        # preallocate memory for image stack
+        output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m] # * (i+1)/(n_slices+1)
 
-        images[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m]
-        
-
-    return images
+    return output
 
 
 def inference_on_sized_image_stack(images, model_root, model_name, threshold_scale=1.0):
@@ -152,20 +152,23 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
                     n_images x img_width x img_height
     '''
     # setup
+    logging.debug("1")
     torch.cuda.empty_cache()
-
+    logging.debug("2")
     # Load the model
     model = M2UnetInteractiveModel(
         model_dir=model_root,
         default_save_path=os.path.join(model_root, model_name),
         pretrained_model=os.path.join(model_root, model_name)
     )
-
+    logging.debug("3")
     # initialize result array
-    outputs = np.zeros(images.shape)
+    outputs = np.zeros(images.shape, dtype=bool)
+    logging.debug("4")
 
     # loop through images
     for i, img in enumerate(images):
+        logging.debug("5")
         # normalize the image
         img = (img - np.mean(img)) /np.std(img)
         # format data
@@ -185,5 +188,5 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
 
         # save result
         outputs[i,:,:] = mask
-    
-    return outputs
+    logging.debug("6")
+    return outputs.astype(bool)
