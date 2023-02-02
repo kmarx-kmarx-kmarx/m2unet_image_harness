@@ -15,7 +15,7 @@ def main():
     logging.basicConfig(filename='timing.log', level=logging.DEBUG)
     data_path = "/media/prakashlab/Extreme SSD/octopi 2023/raw data"
     save_path = "/media/prakashlab/Extreme SSD/octopi 2023/masks"
-    model_path = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/m2unet_model_8/"
+    model_path = "/home/prakashlab/Documents/Kevin/m2unet_models"
     model_name = "model_70_13.pth"
     dataset_file = 'local_datasets.txt'
     n_batch = 50
