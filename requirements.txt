@@ -1,0 +1,12 @@
+albumentations==1.2.1
+gcsfs==2022.7.1
+imageio==2.21.1
+numpy==1.24.1
+opencv_python==4.5.5.64
+pandas==1.4.3
+scikit_image==0.19.3
+scipy==1.8.1
+skimage==0.0
+torch==1.13.1
+tqdm==4.64.0
+xarray==2022.6.0
