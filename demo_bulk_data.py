@@ -14,11 +14,11 @@ def main():
     debug = False
     logging.basicConfig(filename='timing.log', level=logging.DEBUG)
     data_path = "/media/prakashlab/Extreme SSD/octopi 2023/raw data"
-    save_path = "/media/prakashlab/Extreme SSD/octopi 2023/masks"
+    save_path = "/media/prakashlab/Extreme SSD/octopi 2023/masks2"
     model_path = "/home/prakashlab/Documents/Kevin/m2unet_models"
     model_name = "model_70_13.pth"
     dataset_file = 'local_datasets.txt'
-    n_batch = 50
+    n_batch = 75
     # illumination correction
     flatfield_left = np.load('flatfield_left.npy')
     flatfield_right = np.load('flatfield_right.npy')
@@ -47,7 +47,7 @@ def main():
         for i, c in enumerate(product(range(acquisition_parameters['Nx']), range(acquisition_parameters['Ny']))):
             x, y = c
             # Load the images and generate a DPC
-            file_id = f"{y}_{x}_0"
+            file_id = f"{x}_{y}_0"
             dpc = get_dpc(data_path, dataset, file_id, flatfield_left, flatfield_right)
             dpc_array[i, :, :] = dpc
         dt = time.time() - t0
