@@ -7,7 +7,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import torch
 from tqdm import tqdm
 import cv2
-def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0, overlap=16):
+def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0, threshold_set=None, overlap=16):
     '''
     Run inference on a set of images one at a time. 
     This function automatically tiles the image to sz x sz and stitches them back together
@@ -66,7 +66,7 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         image_stack[i, :, :] = images[z, x_0:x_1, y_0:y_1]
     
     # run inference
-    mask_stack = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale)
+    mask_stack, threshold_stack = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale, threshold_set=threshold_set)
 
     # convert back to images
     # preallocate memory for image stack
@@ -130,10 +130,10 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         
         output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m] # * (i+1)/(n_slices+1)
     
-    return output
+    return output, threshold_stack
 
 
-def inference_on_sized_image_stack(images, model_root, model_name, threshold_scale=1.0):
+def inference_on_sized_image_stack(images, model_root, model_name, threshold_scale=1.0, threshold_set=None):
     '''
     Run inference on a set of images one at a time
 
@@ -162,7 +162,7 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
     )
     # initialize result array
     outputs = np.zeros(images.shape, dtype=bool)
-
+    threshold_stack = np.zeros(images.shape[0])
     # loop through images
     for i, img in enumerate(tqdm(images)):
         # normalize the image
@@ -179,9 +179,13 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
         # if batching, keep all the data instead of just index 0
         output = np.clip(results[0] * 255, 0, 255)[:, :, 0].astype('uint8')
         # get threshold 
-        threshold = threshold_otsu(output) * threshold_scale
+        if threshold_set == None:
+            threshold_stack[i] = threshold_otsu(output)
+            threshold = threshold_stack[i] * threshold_scale
+        else:
+            threshold = threshold_set
         mask = (output > threshold)
 
         # save result
         outputs[i,:,:] = mask
-    return outputs.astype(bool)
+    return outputs.astype(bool), threshold_stack

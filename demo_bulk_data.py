@@ -6,6 +6,7 @@ from tqdm.contrib.itertools import product
 from run_on_image import inference_on_image_stack
 import json
 import logging
+import csv
 
 
 # Run m2unet on local data and save the binary masks locally in .npz format
@@ -19,6 +20,7 @@ def main():
     model_name = "model_70_13.pth"
     dataset_file = 'local_datasets.txt'
     n_batch = 75
+    thresh = 128
     # illumination correction
     flatfield_left = np.load('flatfield_left.npy')
     flatfield_right = np.load('flatfield_right.npy')
@@ -26,6 +28,11 @@ def main():
     with open(dataset_file,'r') as f:
         DATASET_ID = f.read()
         DATASET_ID = DATASET_ID.split('\n')[0:-1]
+    if debug:
+        try:
+            DATASET_ID = DATASET_ID[0:2]
+        expect:
+            pass
     
     for dataset in tqdm(DATASET_ID):
         t0 = time.time()
@@ -58,7 +65,7 @@ def main():
         index = 0
         while index < n_images:
             end_idx = min(index + n_batch, n_images)
-            result[index:end_idx, :, :] = inference_on_image_stack(dpc_array[index:end_idx, :, :], model_path, model_name)
+            result[index:end_idx, :, :], __ = inference_on_image_stack(dpc_array[index:end_idx, :, :], model_path, model_name, threshold_set=thresh)
             index = end_idx
         dt = time.time() - t1
         t2 = time.time()
@@ -76,6 +83,8 @@ def main():
         dt = time.time() - t2
         logging.debug(f"Took {dt} seconds to save {n_images} npz files")
         logging.debug(f"Total time for {dataset}: {time.time()-t0}\n")
+
+
 
 if __name__ == "__main__":
     main()
