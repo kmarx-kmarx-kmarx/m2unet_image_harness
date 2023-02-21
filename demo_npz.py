@@ -4,15 +4,16 @@ from run_on_image import inference_on_image_stack
 import os
 import random
 import glob
+import time
 
 data_dir = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/data"
-model_root = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/m2unet_model_8"
-model_name = "model_70_13.pth"
-save_dir = "results_erode"
+model_root = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/m2unet_model_flat"
+model_name = "model_70_11.pth"
+save_dir = "results_erode_flat"
 n_im = 10 # set to None to run on all available .npz
 randomize = True
 center_crop_sz = 512
-random.seed(1)
+random.seed(3)
 
 os.makedirs(save_dir, exist_ok=True)
 
@@ -33,6 +34,7 @@ mask_stack = np.zeros((len(images), sh[0], sh[1]))
 if center_crop_sz > 0:
     x = sh[1]/2 - center_crop_sz/2
     y = sh[0]/2 - center_crop_sz/2
+t0 = time.time()
 for i, image_path in enumerate(images):
     data = np.load(image_path)
     im = data["img"]
@@ -50,8 +52,10 @@ for i, image_path in enumerate(images):
 
     cv2.imwrite(os.path.join(save_dir, f"{fname}_original.png"), im)
     cv2.imwrite(os.path.join(save_dir,(f"{fname}_mask.png")), mask)
+print(image_stack.shape)
 
-result = inference_on_image_stack(image_stack, model_root, model_name)
+result, __ = inference_on_image_stack(image_stack, model_root, model_name)
+print(time.time()-t0)
 result = result.astype(np.uint8)
 result = 225 * result / (np.max(result))
 

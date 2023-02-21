@@ -29,6 +29,8 @@ import torch
 import torch.nn as nn
 import math
 
+N_CHAN = 1
+
 def conv_bn(inp, oup, stride):
     return nn.Sequential(
         nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
@@ -103,7 +105,7 @@ class Encoder(nn.Module):
         ]
         # Encoder Part
         input_channel = 32 # number of input channels to first inverted (residual) block
-        self.layers = [conv_bn(3, 32, 2)]
+        self.layers = [conv_bn(N_CHAN, 32, 2)]
         # building inverted residual blocks
         for t, c, n, s in interverted_residual_setting:
             output_channel = c
@@ -171,7 +173,7 @@ class M2UNet(nn.Module):
             self.decode4 = DecoderBlock(96,32,upsamplemode,expand_ratio)
             self.decode3 = DecoderBlock(64,24,upsamplemode,expand_ratio)
             self.decode2 = DecoderBlock(44,16,upsamplemode,expand_ratio)
-            self.decode1 = LastDecoderBlock(33,upsamplemode,expand_ratio, output_channels=output_channels, activation=activation)
+            self.decode1 = LastDecoderBlock((30+N_CHAN),upsamplemode,expand_ratio, output_channels=output_channels, activation=activation)
             # initilaize weights 
             self._initialize_weights()
 

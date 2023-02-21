@@ -168,7 +168,7 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
         # normalize the image
         img = (img - np.mean(img)) /np.std(img)
         # format data
-        inputs = np.stack([img,]*3, axis=2)
+        inputs = np.stack([img,]*1, axis=2)
         # no batching - add an axis but don't put additional data there
         # for batching, stack the images along axis 0
         inputs = np.expand_dims(inputs, axis=0)
