@@ -31,7 +31,7 @@ def main():
     if debug:
         try:
             DATASET_ID = DATASET_ID[0:2]
-        expect:
+        except:
             pass
     
     for dataset in tqdm(DATASET_ID):
@@ -83,8 +83,6 @@ def main():
         dt = time.time() - t2
         logging.debug(f"Took {dt} seconds to save {n_images} npz files")
         logging.debug(f"Total time for {dataset}: {time.time()-t0}\n")
-
-
 
 if __name__ == "__main__":
     main()
