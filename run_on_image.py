@@ -2,6 +2,7 @@ import os
 from interactive_m2unet import M2UnetInteractiveModel
 import numpy as np
 from skimage.filters import threshold_otsu
+import time
 # specify the gpu number
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import torch
@@ -66,7 +67,7 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         image_stack[i, :, :] = images[z, x_0:x_1, y_0:y_1]
     
     # run inference
-    mask_stack, threshold_stack = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale, threshold_set=threshold_set)
+    mask_stack, threshold_stack, times = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale, threshold_set=threshold_set)
 
     # convert back to images
     # preallocate memory for image stack
@@ -130,7 +131,7 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         
         output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m] # * (i+1)/(n_slices+1)
     
-    return output, threshold_stack
+    return output, threshold_stack, times
 
 
 def inference_on_sized_image_stack(images, model_root, model_name, threshold_scale=1.0, threshold_set=None):
@@ -163,8 +164,10 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
     # initialize result array
     outputs = np.zeros(images.shape, dtype=bool)
     threshold_stack = np.zeros(images.shape[0])
+    times = np.zeros(images.shape[0])
     # loop through images
     for i, img in enumerate(tqdm(images)):
+        t0 = time.time()
         # normalize the image
         img = (img - np.mean(img)) /np.std(img)
         # format data
@@ -188,4 +191,5 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
 
         # save result
         outputs[i,:,:] = mask
-    return outputs.astype(bool), threshold_stack
+        times[i] = time.time()-t0
+    return outputs.astype(bool), threshold_stack, times
