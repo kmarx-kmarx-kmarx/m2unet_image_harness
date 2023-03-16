@@ -212,7 +212,7 @@ def m2unet(model_root, model_name, upsamplemode='bilinear',expand_ratio=0.15, ou
     enc = Encoder(N_CHAN=N_CHAN)
     model = M2UNet(enc, upsamplemode=upsamplemode,expand_ratio=expand_ratio, output_channels=output_channels, activation=activation, N_CHAN=N_CHAN)
     model = model.to(device)
-    model.load_state_dict(torch.load(os.path.join(model_root, model_name)))
+    model.load_state_dict(torch.load(os.path.join(model_root, model_name), map_location = torch.device(device)))
     model.eval()
    
     return model, device
