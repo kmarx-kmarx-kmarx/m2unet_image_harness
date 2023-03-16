@@ -28,8 +28,7 @@
 import torch
 import torch.nn as nn
 import math
-
-N_CHAN = 1
+import os
 
 def conv_bn(inp, oup, stride):
     return nn.Sequential(
@@ -92,7 +91,7 @@ class Encoder(nn.Module):
     """
     14 layers of MobileNetv2 as encoder part
     """
-    def __init__(self):
+    def __init__(self, N_CHAN=3):
         super(Encoder, self).__init__()
         block = InvertedResidual
         interverted_residual_setting = [
@@ -161,7 +160,7 @@ class LastDecoderBlock(nn.Module):
         return x
     
 class M2UNet(nn.Module):
-        def __init__(self,encoder,upsamplemode='bilinear',output_channels=1, activation="linear", expand_ratio=0.15):
+        def __init__(self,encoder,upsamplemode='bilinear',output_channels=1, activation="linear", expand_ratio=0.15, N_CHAN=3):
             super(M2UNet,self).__init__()
             encoder = list(encoder.children())[0]
             # Encoder
@@ -203,7 +202,17 @@ class M2UNet(nn.Module):
             decode1 = self.decode1(decode2,x)
             return decode1
         
-def m2unet(output_channels=1,expand_ratio=0.15, activation="linear", **kwargs):
-    encoder = Encoder()
-    model = M2UNet(encoder,upsamplemode='bilinear',expand_ratio=expand_ratio, output_channels=output_channels, activation=activation)
-    return model
+def m2unet(model_root, model_name, upsamplemode='bilinear',expand_ratio=0.15, output_channels=1, activation="linear", N_CHAN=3):
+    torch.cuda.empty_cache()
+    gpu = torch.cuda.is_available()
+    if gpu:
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    enc = Encoder(N_CHAN=N_CHAN)
+    model = M2UNet(enc, upsamplemode=upsamplemode,expand_ratio=expand_ratio, output_channels=output_channels, activation=activation, N_CHAN=N_CHAN)
+    model = model.to(device)
+    model.load_state_dict(torch.load(os.path.join(model_root, model_name)))
+    model.eval()
+   
+    return model, device

@@ -3,9 +3,12 @@ import numpy as np
 import os
 import random
 import glob
+# Used for converting .npz-stored data to bmp images
+# Not necessary for M2U-Net or segmentation!
+
 # convert masks into bmp for easy viewing
-data_dir = "/media/prakashlab/Extreme SSD/octopi 2023/masks"
-save_dir = "random_sample"
+data_dir = "path/to/data"
+save_dir = "pat/to/destination"
 n_im = 10 # set to None to run on all available .npz
 randomize = True
 center_crop_sz = 0

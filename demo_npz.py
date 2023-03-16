@@ -1,3 +1,4 @@
+# NOTE: due to refactor in progress, this currently does not work
 import cv2
 import numpy as np
 from run_on_image import inference_on_image_stack
@@ -6,24 +7,26 @@ import random
 import glob
 import time
 from tqdm import tqdm
+from natsort import natsorted
 import torch
 import torch.nn.functional as F
+import pandas as pd
 
 def main():
-    data_dir = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/data_sbc_validation"
+    data_dir = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/data_uganda_hemaprep"
     model_root = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/m2unet_model_flat_less_erode_2_rotfirst"
     model_name = "model_24_9.pth"
-    save_dir = "results_flat_erode_rotfirst_with_eroded_masks_final"
+    save_dir = "results_flat_erode_rotfirst_with_eroded_masks_final_ord"
     n_im = 50 # set to None to run on all available .npz
-    randomize = True
+    randomize = False
     erode_mask = 1
-    center_crop_sz = 512
+    center_crop_sz = 0
     random.seed(3)
 
     os.makedirs(save_dir, exist_ok=True)
 
     # Get image paths
-    images = glob.glob(os.path.join(data_dir, "**.npz"), recursive=True)
+    images = natsorted(glob.glob(os.path.join(data_dir, "**.npz"), recursive=True))
     if randomize:
         random.shuffle(images)
     if n_im != None:
@@ -33,34 +36,34 @@ def main():
     data = np.load(images[0])
     im = data["img"]
     sh = im.shape
-
     image_stack = np.zeros((len(images), sh[0], sh[1]))
     mask_stack = np.zeros((len(images), sh[0], sh[1]))
     if center_crop_sz > 0:
         x = sh[1]/2 - center_crop_sz/2
         y = sh[0]/2 - center_crop_sz/2
     t0 = time.time()
+    
     for i, image_path in enumerate(tqdm(images)):
         data = np.load(image_path)
         im = data["img"]
         mask = data["mask"]
         image_stack[i,:,:] = im
-        mask_stack[i,:,:] = mask
 
         # save data as images
         fname = image_path.rsplit('.', 1)[0]
         fname = fname.split('/')[-1]
+        if erode_mask > 0:
+            shape = cv2.MORPH_ELLIPSE
+            element = cv2.getStructuringElement(shape, (2 * erode_mask + 1, 2 * erode_mask + 1), (erode_mask, erode_mask))
+            mask = np.array(cv2.erode(mask, element))
+        mask_stack[i,:,:] = mask
 
         if center_crop_sz > 0:
             im = im[int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
             mask = mask[int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
 
-        if erode_mask > 0:
-            shape = cv2.MORPH_ELLIPSE
-            element = cv2.getStructuringElement(shape, (2 * erode_mask + 1, 2 * erode_mask + 1), (erode_mask, erode_mask))
-            mask = np.array(cv2.erode(mask, element))
-
-        # cv2.imwrite(os.path.join(save_dir, f"{fname}_original.png"), im)
+        
+        cv2.imwrite(os.path.join(save_dir, f"{fname}_original.png"), im)
         # cv2.imwrite(os.path.join(save_dir,(f"{fname}_mask.png")), mask)
     print(image_stack.shape)
     t0 = time.time()
@@ -69,17 +72,16 @@ def main():
     print(time.time()-t0)
     result=result.astype(np.uint8)
 
-
+    jaccard = []
+    bce = []
     for i, segmented in enumerate(tqdm(result)):
         # save data as images
+        jaccard.append(jaccard_similarity_bin_mask(mask_stack[i,:,:], segmented))
+        bce.append(binary_cross_entropy(mask_stack[i,:,:], segmented))
         if center_crop_sz > 0:
             segmented = segmented[int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
             mask = mask_stack[i, int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
             sh = segmented.shape
-        if erode_mask > 0:
-            shape = cv2.MORPH_ELLIPSE
-            element = cv2.getStructuringElement(shape, (2 * erode_mask + 1, 2 * erode_mask + 1), (erode_mask, erode_mask))
-            mask = np.array(cv2.erode(mask, element))
         segmented = segmented * 255
         fname = images[i].rsplit('.', 1)[0]
         fname = fname.split('/')[-1]
@@ -88,8 +90,11 @@ def main():
         color_diff[:,:,0] = (255 * (diff < 0)).astype(np.uint8)
         color_diff[:,:,2] = (255 * (diff > 0)).astype(np.uint8)
         # cv2.imwrite(os.path.join(save_dir, f"{fname}_diff.png"), color_diff)
-        # cv2.imwrite(os.path.join(save_dir, f"{fname}_pred.png"), segmented)
-
+        cv2.imwrite(os.path.join(save_dir, f"{fname}_pred.png"), segmented)
+    #make csv
+    data_out = {"paths": images, "jaccard": jaccard, "bce": bce}
+    df = pd.DataFrame(data_out)
+    df.to_csv(f'{save_dir}/hema_uganda_2.csv')
 
 def jaccard_similarity_bin_mask(A, B):
     # Calculate Jaccard similarity of two masks
@@ -100,6 +105,8 @@ def jaccard_similarity_bin_mask(A, B):
 
 def binary_cross_entropy(y_true, y_pred):
     # Convert to tensors
+    y_true = y_true/np.max(y_true)
+    y_pred = y_pred/np.max(y_pred)
     y_true = torch.tensor(y_true).float()
     y_pred = torch.tensor(y_pred).float()
 

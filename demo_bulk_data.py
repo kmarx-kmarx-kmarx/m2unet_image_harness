@@ -1,4 +1,4 @@
-from utils import *
+# NOTE: due to refactor in progress, this currently does not work
 import numpy as np
 import time
 from tqdm import tqdm
@@ -6,21 +6,22 @@ from tqdm.contrib.itertools import product
 from run_on_image import inference_on_image_stack
 import json
 import logging
-import csv
-
+import os
+import cv2
 
 # Run m2unet on local data and save the binary masks locally in .npz format
 # in the data_path folder, we expect to see a folder for each dataset containing the raw data
 def main():
     debug = False
     logging.basicConfig(filename='timing.log', level=logging.DEBUG)
-    data_path = "/media/prakashlab/Extreme SSD/octopi 2023/raw data"
-    save_path = "/media/prakashlab/Extreme SSD/octopi 2023/masks2"
-    model_path = "/home/prakashlab/Documents/Kevin/m2unet_models"
-    model_name = "model_70_13.pth"
+    data_path = "path/to/images"
+    save_path = "path/to/store"
+    model_path = "m2unet_model_greyscale"
+    n_channels = 1 # 1 channel because we are using greyscale
+    model_name = "model_70_11.pth"
     dataset_file = 'local_datasets.txt'
-    n_batch = 75
-    thresh = 128
+    n_batch = 75 # number of images to process per batch
+    thresh = 128 # threshold (0 to 255)
     # illumination correction
     flatfield_left = np.load('flatfield_left.npy')
     flatfield_right = np.load('flatfield_right.npy')
@@ -83,6 +84,29 @@ def main():
         dt = time.time() - t2
         logging.debug(f"Took {dt} seconds to save {n_images} npz files")
         logging.debug(f"Total time for {dataset}: {time.time()-t0}\n")
+
+def get_dpc(data_path, dataset, file_id, flatfield_left, flatfield_right):
+    # generate DPC
+    I_BF_left = cv2.imread(os.path.join(data_path, dataset, '0', file_id + '_' + 'BF_LED_matrix_left_half.bmp'))
+    I_BF_right = cv2.imread(os.path.join(data_path, dataset, '0', file_id + '_' + 'BF_LED_matrix_right_half.bmp'))
+    if len(I_BF_left.shape)==3: # convert to mono if color
+        I_BF_left = I_BF_left[:,:,1]
+        I_BF_right = I_BF_right[:,:,1]
+    I_BF_left = I_BF_left.astype('float')/255
+    I_BF_right = I_BF_right.astype('float')/255
+    # flatfield correction
+    I_BF_left = I_BF_left/flatfield_left
+    I_BF_right = I_BF_right/flatfield_right
+    I_DPC = generate_dpc(I_BF_left,I_BF_right)
+
+    return (255*I_DPC).astype(np.uint8)
+
+def generate_dpc(I1,I2):
+    I_dpc = np.divide(I1-I2,I1+I2)
+    I_dpc = I_dpc + 0.5
+    I_dpc[I_dpc<0] = 0
+    I_dpc[I_dpc>1] = 1
+    return I_dpc
 
 if __name__ == "__main__":
     main()

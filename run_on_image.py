@@ -1,5 +1,5 @@
 import os
-from interactive_m2unet import M2UnetInteractiveModel
+from m2unet import M2UNet, Encoder
 import numpy as np
 from skimage.filters import threshold_otsu
 import time
@@ -7,8 +7,8 @@ import time
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 import torch
 from tqdm import tqdm
-import cv2
-def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_scale=1.0, threshold_set=None, overlap=16):
+
+def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=128, overlap=16):
     '''
     Run inference on a set of images one at a time. 
     This function automatically tiles the image to sz x sz and stitches them back together
@@ -31,15 +31,15 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
         masks: np array of binary masks,
                     n_images x img_width x img_height
     '''
-    # make overlap even if it isn't already
+    # make overlap an even number
     overlap += overlap%2
 
-    n_im, im_w, im_h = images.shape
+    n_im, im_w, im_h, im_c = images.shape
     nx = int(np.ceil((im_w-overlap)/(sz-overlap)))
     ny = int(np.ceil((im_h-overlap)/(sz-overlap)))
     n_slices = int(n_im * nx * ny)
     # slice images down to size and put them in the stack
-    image_stack = np.zeros((n_slices, sz, sz), dtype=np.uint8)
+    image_stack = np.zeros((n_slices, sz, sz, im_c), dtype=np.uint8)
     dx, dy = (0, 0)
     for i in range(n_slices):
         x = i % nx
@@ -64,10 +64,10 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
             y_0 = (sz-overlap)*y 
             y_1 = y_0 + sz
 
-        image_stack[i, :, :] = images[z, x_0:x_1, y_0:y_1]
+        image_stack[i, :, :, :] = images[z, x_0:x_1, y_0:y_1, :]
     
     # run inference
-    mask_stack, threshold_stack, times = inference_on_sized_image_stack(image_stack, model_root, model_name, threshold_scale=threshold_scale, threshold_set=threshold_set)
+    mask_stack, times = inference_on_sized_image_stack(image_stack, model, device=device, threshold_set=threshold_set)
 
     # convert back to images
     # preallocate memory for image stack
@@ -126,15 +126,13 @@ def inference_on_image_stack(images, model_root, model_name, sz=1024, threshold_
             y_0 = y_1-y_1m+y_0m
         else:
             y_1 = y_0+y_1m-y_0m
-
-        # print(f"{x},{y},{z}: ({x_0},{x_1}->{x_1-x_0}), ({y_0},{y_1}->{y_1-y_0}), ({x_0m},{x_1m}->{x_1m-x_0m}), ({y_0m},{y_1m}->{y_1m-y_0m}), ({dx},{dy})")
         
-        output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m] # * (i+1)/(n_slices+1)
+        output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m]
     
-    return output, threshold_stack, times
+    return output, times
 
 
-def inference_on_sized_image_stack(images, model_root, model_name, threshold_scale=1.0, threshold_set=None):
+def inference_on_sized_image_stack(images, model, device=None, threshold_set=128):
     '''
     Run inference on a set of images one at a time
 
@@ -153,43 +151,30 @@ def inference_on_sized_image_stack(images, model_root, model_name, threshold_sca
         masks: np array of binary masks,
                     n_images x img_width x img_height
     '''
-    # setup
-    torch.cuda.empty_cache()
-    # Load the model
-    model = M2UnetInteractiveModel(
-        model_dir=model_root,
-        default_save_path=os.path.join(model_root, model_name),
-        pretrained_model=os.path.join(model_root, model_name)
-    )
+    # init. device
+    if device == None:
+        device = torch.device("cpu")
     # initialize result array
     outputs = np.zeros(images.shape, dtype=bool)
-    threshold_stack = np.zeros(images.shape[0])
-    times = np.zeros(images.shape[0])
+    times = [0]*images.shape[0]
     # loop through images
     for i, img in enumerate(tqdm(images)):
         t0 = time.time()
         # normalize the image
         img = (img - np.mean(img)) /np.std(img)
-        # format data
-        inputs = np.stack([img,]*1, axis=2)
         # no batching - add an axis but don't put additional data there
         # for batching, stack the images along axis 0
-        inputs = np.expand_dims(inputs, axis=0)
+        inputs = np.expand_dims(img, axis=0)
 
         # run inferece
-        results = model.predict(inputs)
+        assert inputs.ndim == 4
+        X = torch.from_numpy(inputs.transpose(0, 3, 1, 2)).to(device=device, dtype=torch.float32)
+        results = model(X).detach().cpu().numpy().transpose(0, 2, 3, 1)
         # get the results - look at the first output. 
         # if batching, keep all the data instead of just index 0
-        output = np.clip(results[0] * 255, 0, 255)[:, :, 0].astype('uint8')
-        # get threshold 
-        if threshold_set == None:
-            threshold_stack[i] = threshold_otsu(output)
-            threshold = threshold_stack[i] * threshold_scale
-        else:
-            threshold = threshold_set
-        mask = (output > threshold)
-
+        output = np.clip(results[0,:,:,0] * 255, 0, 255).astype('uint8')
+        mask = (output > threshold_set)
         # save result
-        outputs[i,:,:] = mask
+        outputs[i,:,:,0] = mask
         times[i] = time.time()-t0
-    return outputs.astype(bool), threshold_stack, times
+    return outputs.astype(bool), times
