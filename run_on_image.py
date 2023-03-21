@@ -72,6 +72,7 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
     # convert back to images
     # preallocate memory for image stack
     output = np.zeros(images.shape, dtype=bool)
+    t_full = [0] * n_im
     for i in range(n_slices):
         x = i % nx
         y = int(np.floor(i/nx))
@@ -128,8 +129,9 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
             y_1 = y_0+y_1m-y_0m
         
         output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m]
-    
-    return output, times
+        t_full[z] = np.sum(times[z*nx*ny:(z+1)*nx*ny]) # sum of the nx * ny next slices
+
+    return output, t_full
 
 
 def inference_on_sized_image_stack(images, model, device=None, threshold_set=128):
