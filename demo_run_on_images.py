@@ -7,16 +7,17 @@ from m2unet import m2unet
 import cv2
 from run_on_image import inference_on_image_stack
 import numpy as np
+# import torch
 
 def main():
-    data_dir = "path/to/data"
+    data_dir = "/home/prakashlab/Documents/cellpose_img/PF Tanzania full (U3D_201910_2022-01-11_23-11-36.799392)"
     ftype = ".png" # select which image files to read
     model_root = "m2unet_model_greyscale"
     n_channels = 1 # set to 1 for greyscale, 3 for RGB
     model_name = "model_70_11.pth"
     save_dir = "path/to/save"
-    batch_sz = 1 # segment this many images per batch. Should be set depending on image size, hardware.
-    n_im = 1    # total number of images to segment. Set to 0 to segment all images in data_dir
+    batch_sz = 50 # segment this many images per batch. Should be set depending on image size, hardware.
+    n_im = 0    # total number of images to segment. Set to 0 to segment all images in data_dir
     run_size = 1024 # tile the images to 1024x1024 sections. Should be set depending on image size, hardware
     overlap = 16    # Amount of overlap between adjacent tiles
     randomize = False # Segment the images in random order
@@ -24,7 +25,7 @@ def main():
 
     # Load M2Unet
     model, device = m2unet(model_root, model_name, upsamplemode='bilinear',expand_ratio=0.15, output_channels=1, activation="linear", N_CHAN=n_channels)
-
+    # opt_model = torch.compile(model, backend="inductor")
     os.makedirs(save_dir, exist_ok=True)
 
     # get image paths
@@ -35,7 +36,6 @@ def main():
         images = images[:n_im]
     images = images + images
     total_images = len(images)
-
     # Load and evaluate batch_sz images at a time
     idx = 0
     t_read = []
@@ -66,11 +66,10 @@ def main():
             t_writ.append(time.time()-t0)
         
         idx = end_idx
-    
     # print timing statistics
-    print(f"Reading:      {np.sum(t_read):.3f}, avg {np.mean(t_read):.3f}")
-    print(f"Segmentation: {np.sum(t_segm):.3f}, avg {np.mean(t_segm):.3f}")
-    print(f"Writing:      {np.sum(t_writ):.3f}, avg {np.mean(t_writ):.3f}")
+    print(f"Reading:      {np.sum(t_read):.3f}, avg {np.mean(t_read):.3f}, med {np.median(t_read):.3f}")
+    print(f"Segmentation: {np.sum(t_segm):.3f}, avg {np.mean(t_segm):.3f}, med {np.median(t_segm):.3f}")
+    print(f"Writing:      {np.sum(t_writ):.3f}, avg {np.mean(t_writ):.3f}, med {np.median(t_writ):.3f}")
     print(f"Total:        {(time.time()-t_init):.3f}, avg {(time.time()-t_init)/total_images:.3f}")
     
 if __name__ == "__main__":
