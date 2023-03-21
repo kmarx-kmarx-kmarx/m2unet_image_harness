@@ -12,11 +12,11 @@ import csv
 # Run m2unet on local data and save the binary masks locally in .npz format
 # in the data_path folder, we expect to see a folder for each dataset containing the raw data
 def main():
-    debug = False
+    debug = True
     logging.basicConfig(filename='timing.log', level=logging.DEBUG)
     data_path = "/media/prakashlab/Extreme SSD/octopi 2023/raw data"
-    save_path = "/media/prakashlab/Extreme SSD/octopi 2023/masks2"
-    model_path = "/home/prakashlab/Documents/Kevin/m2unet_models"
+    save_path = "/media/prakashlab/Extreme SSD/octopi 2023/masks32"
+    model_path = "/home/prakashlab/Documents/kmarx/train_m2unet_cellpose_cloud/m2unet_model_8"
     model_name = "model_70_13.pth"
     dataset_file = 'local_datasets.txt'
     n_batch = 75
