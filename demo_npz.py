@@ -7,6 +7,9 @@ from m2unet import m2unet
 import cv2
 from run_on_image import inference_on_image_stack
 import numpy as np
+import pandas as pd
+import torch
+import torch.nn.functional as F
 
 def main():
     data_dir = "path/to/data"
@@ -19,12 +22,13 @@ def main():
     run_size = 1024 # tile the images to 1024x1024 sections. Should be set depending on image size, hardware
     overlap = 16    # Amount of overlap between adjacent tiles
     randomize = False # Segment the images in random order
-    erode_mask = 1
-    center_crop_sz = 1024
-    save_cp_mask = True
-    save_image = True
-    save_diff = True
-    save_pred_mask = True
+    erode_mask = 1         # Erode the "ground truth" mask. Set negative to disable
+    center_crop_sz = 0     # Crop the images before running the model on them. Set to 0 to use full size
+    save_dpz_mask = False   # save the eroded "ground truth" mask as a .png
+    save_image = False      # save the original image as .png
+    save_diff = False       # save the difference between the "ground truth" and predicted mask
+    save_pred_mask = False  # save the predicted mask
+    save_stats = True      # save loss and Jaccard similarity for each image
     random.seed(3)
 
     if center_crop_sz > 0:
@@ -57,6 +61,9 @@ def main():
     t_segm = []
     t_writ = []
     t_init = time.time()
+    # store results: paths,jaccard,bce
+    data_list = []
+
     while idx < total_images:
         end_idx = min(idx + batch_sz, total_images)
         # Load the images
@@ -78,7 +85,7 @@ def main():
                 im = im[int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
                 mask = mask[int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
 
-            if erode_mask > 0:
+            if erode_mask >= 0:
                 shape = cv2.MORPH_ELLIPSE
                 element = cv2.getStructuringElement(shape, (2 * erode_mask + 1, 2 * erode_mask + 1), (erode_mask, erode_mask))
                 mask = np.array(cv2.erode(mask, element))
@@ -99,7 +106,7 @@ def main():
             if save_pred_mask:
                 savepath = os.path.join(save_dir, f"seg_{fname}")
                 cv2.imwrite(savepath, 255*result)
-            if save_cp_mask:
+            if save_dpz_mask:
                 savepath = os.path.join(save_dir, f"cp_{fname}")
                 cv2.imwrite(savepath, masks[i])
             if save_image:
@@ -113,14 +120,39 @@ def main():
                 savepath = os.path.join(save_dir, f"diff_{fname}")
                 cv2.imwrite(savepath, color_diff)
             t_writ.append(time.time()-t0)
+            if save_stats:
+                jaccard = jaccard_similarity_bin_mask(masks[i, :, :]//255, result)
+                bce = binary_cross_entropy(masks[i, :, :]//255, result)
+                path = images[i]
+                data_list.append([path, jaccard, bce, times[i]])
         
         idx = end_idx
-    
+    # save stats
+    results_df = pd.DataFrame(columns=['path', 'jaccard', 'bce', 'time'], data=data_list)
+    results_df.to_csv(os.path.join(save_dir, f"stats_{n_im}.csv"))
     # print timing statistics
-    print(f"Reading:      {np.sum(t_read):.3f}, avg {np.mean(t_read):.3f}")
-    print(f"Segmentation: {np.sum(t_segm):.3f}, avg {np.mean(t_segm):.3f}")
-    print(f"Writing:      {np.sum(t_writ):.3f}, avg {np.mean(t_writ):.3f}")
+    print(f"Reading:      {np.sum(t_read):.3f}, avg {np.mean(t_read):.3f}, median {np.median(t_read):.3f}")
+    print(f"Segmentation: {np.sum(t_segm):.3f}, avg {np.mean(t_segm):.3f}, median {np.median(t_read):.3f}")
+    print(f"Writing:      {np.sum(t_writ):.3f}, avg {np.mean(t_writ):.3f}, median {np.median(t_read):.3f}")
     print(f"Total:        {(time.time()-t_init):.3f}, avg {(time.time()-t_init)/total_images:.3f}")
     
+
+def jaccard_similarity_bin_mask(A, B):
+    # Calculate Jaccard similarity of two masks
+    intersection = np.sum(np.logical_and(A, B))
+    union = np.sum(np.logical_or(A, B))
+    res = intersection/union
+    return res
+
+def binary_cross_entropy(y_true, y_pred):
+    # Convert to tensors
+    y_true = torch.tensor(y_true).float()
+    y_pred = torch.tensor(y_pred).float()
+
+    # Calculate binary cross-entropy
+    bce_loss = F.binary_cross_entropy(y_pred, y_true)
+
+    return bce_loss.item()
+
 if __name__ == "__main__":
     main()
