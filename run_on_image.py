@@ -41,6 +41,7 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
     # slice images down to size and put them in the stack
     image_stack = np.zeros((n_slices, sz, sz, im_c), dtype=np.uint8)
     dx, dy = (0, 0)
+    print(image_stack.shape)
     for i in range(n_slices):
         x = i % nx
         y = int(np.floor(i/nx))
@@ -63,7 +64,6 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
         else:
             y_0 = (sz-overlap)*y 
             y_1 = y_0 + sz
-
         image_stack[i, :, :, :] = images[z, x_0:x_1, y_0:y_1, :]
     
     # run inference
@@ -84,7 +84,10 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
         # slice mask_stack: don't get overlaps unless we are at the end
         if x == 0:
             x_0m = 0
-            x_1m = sz-d
+            if nx == 1:
+                x_1m = sz
+            else:
+                x_1m = sz-d
         elif x==(nx-1):
             x_0m = dx-2*overlap
             x_1m = sz
@@ -108,7 +111,10 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
 
         if y == 0:
             y_0m = 0
-            y_1m = sz-d
+            if ny == 1:
+                y_1m = sz
+            else:
+                y_1m = sz-d
         elif y==(nx-1):
             y_0m = dy-2*overlap
             y_1m = sz
@@ -128,6 +134,9 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
         else:
             y_1 = y_0+y_1m-y_0m
         
+        print([x_0,x_1, y_0,y_1])
+        print([x_0m,x_1m, y_0m,y_1m])
+
         output[z, x_0:x_1, y_0:y_1] = mask_stack[i, x_0m:x_1m, y_0m:y_1m]
         t_full[z] = np.sum(times[z*nx*ny:(z+1)*nx*ny]) # sum of the nx * ny next slices
 

@@ -20,12 +20,15 @@ def main():
     overlap = 16    # Amount of overlap between adjacent tiles
     randomize = False # Segment the images in random order
     erode_mask = 1
-    center_crop_sz = 0
+    center_crop_sz = 1024
     save_cp_mask = True
     save_image = True
     save_diff = True
     save_pred_mask = True
     random.seed(3)
+
+    if center_crop_sz > 0:
+        run_size = min(run_size, center_crop_sz)
 
     # Load M2Unet
     model, device = m2unet(model_root, model_name, upsamplemode='bilinear',expand_ratio=0.15, output_channels=1, activation="linear", N_CHAN=n_channels)
@@ -40,6 +43,14 @@ def main():
         images = images[:n_im]
     total_images = len(images)
 
+    data = np.load(images[0])
+    im = data["img"]
+    sh = im.shape
+
+    if center_crop_sz > 0:
+        x = sh[1]/2 - center_crop_sz/2
+        y = sh[0]/2 - center_crop_sz/2
+
     # Load and evaluate batch_sz images at a time
     idx = 0
     t_read = []
@@ -49,8 +60,12 @@ def main():
     while idx < total_images:
         end_idx = min(idx + batch_sz, total_images)
         # Load the images
-        imgs = []
-        masks = []
+        if center_crop_sz > 0:
+            imgs = np.zeros(((end_idx - idx), center_crop_sz, center_crop_sz, 1))
+            masks = np.zeros(((end_idx - idx), center_crop_sz, center_crop_sz))
+        else:
+            imgs = np.zeros(((end_idx - idx), sh[0], sh[1], 1))
+            masks = np.zeros(((end_idx - idx), sh[0], sh[1]))
         for i in range(idx, end_idx):
             t0 = time.time()
             data = np.load(images[i])
@@ -68,8 +83,8 @@ def main():
                 element = cv2.getStructuringElement(shape, (2 * erode_mask + 1, 2 * erode_mask + 1), (erode_mask, erode_mask))
                 mask = np.array(cv2.erode(mask, element))
 
-            imgs.append(im)
-            masks.append(mask)
+            imgs[(idx + i),:,:] = im
+            masks[(idx + i),:,:] = mask
             t_read.append(time.time()-t0)
         imgs = np.array(imgs)
 
