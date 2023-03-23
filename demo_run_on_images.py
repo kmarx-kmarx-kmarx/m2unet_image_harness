@@ -33,7 +33,6 @@ def main():
         random.shuffle(images)
     if n_im > 0:
         images = images[:n_im]
-    images = images + images
     total_images = len(images)
 
     # Load and evaluate batch_sz images at a time
