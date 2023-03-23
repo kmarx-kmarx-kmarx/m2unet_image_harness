@@ -75,7 +75,12 @@ def main():
                 savepath = os.path.join(save_dir, f"im_{fname}")
                 cv2.imwrite(savepath, imgs[i])
             if save_diff:
-                asdfasdfasd
+                diff = (result/np.max(result)) - (masks[i]/np.max(masks[i]))
+                color_diff = np.zeros((diff.shape[0], diff.shape[1], 3), dtype=np.uint8)
+                color_diff[:,:,0] = (255 * (diff < 0)).astype(np.uint8)
+                color_diff[:,:,2] = (255 * (diff > 0)).astype(np.uint8)
+                savepath = os.path.join(save_dir, f"diff_{fname}")
+                cv2.imwrite(savepath, color_diff)
             t_writ.append(time.time()-t0)
         
         idx = end_idx
