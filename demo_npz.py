@@ -19,6 +19,8 @@ def main():
     run_size = 1024 # tile the images to 1024x1024 sections. Should be set depending on image size, hardware
     overlap = 16    # Amount of overlap between adjacent tiles
     randomize = False # Segment the images in random order
+    erode_mask = 1
+    center_crop_sz = 0
     save_cp_mask = True
     save_image = True
     save_diff = True
@@ -56,6 +58,16 @@ def main():
             if im.ndim == 2:
                 im = np.expand_dims(im, axis=2)
             mask = data["mask"]
+
+            if center_crop_sz > 0:
+                im = im[int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
+                mask = mask[int(y):int(y+center_crop_sz), int(x):int(x+center_crop_sz)]
+
+            if erode_mask > 0:
+                shape = cv2.MORPH_ELLIPSE
+                element = cv2.getStructuringElement(shape, (2 * erode_mask + 1, 2 * erode_mask + 1), (erode_mask, erode_mask))
+                mask = np.array(cv2.erode(mask, element))
+
             imgs.append(im)
             masks.append(mask)
             t_read.append(time.time()-t0)
