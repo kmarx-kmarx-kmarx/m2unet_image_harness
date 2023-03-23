@@ -71,6 +71,9 @@ def main():
                 if bce > worst_loss:
                     worst_loss = bce
                     worst_pred = 225*inference_stack[(i-index), :, :]
+                if jaccard < 0.7:
+                    cv2.imwrite(os.path.join(save_dir, f"{i}_{save_file}_worst_pred.png"), worst_pred)
+                    cv2.imwrite(os.path.join(save_dir, f"{i}_{save_file}_worst_im.png"), image_stack[(i-index), :, :])
         pbar.update(end_idx - index)
         index = end_idx
         if debug_n > 0 and index > debug_n:
