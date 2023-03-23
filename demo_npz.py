@@ -15,14 +15,14 @@ def main():
     model_name = "model_70_11.pth"
     save_dir = "path/to/save"
     batch_sz = 10 # segment this many images per batch. Should be set depending on image size, hardware.
-    n_im = 50   # total number of images to segment. Set to 0 to segment all images in data_dir
+    n_im = 5   # total number of images to segment. Set to 0 to segment all images in data_dir
     run_size = 1024 # tile the images to 1024x1024 sections. Should be set depending on image size, hardware
     overlap = 16    # Amount of overlap between adjacent tiles
     randomize = False # Segment the images in random order
-    save_cp_mask = False
-    save_image = False
+    save_cp_mask = True
+    save_image = True
     save_diff = True
-    save_pred_mask = False
+    save_pred_mask = True
     random.seed(3)
 
     # Load M2Unet
@@ -71,10 +71,10 @@ def main():
             fname = fname.rsplit('.', 1)[0] + ".png"
             if save_pred_mask:
                 savepath = os.path.join(save_dir, f"seg_{fname}")
-                cv2.imwrite(savepath, 255*result[:,:,0])
+                cv2.imwrite(savepath, 255*result)
             if save_cp_mask:
                 savepath = os.path.join(save_dir, f"cp_{fname}")
-                cv2.imwrite(savepath, 255*masks[i])
+                cv2.imwrite(savepath, masks[i])
             if save_image:
                 savepath = os.path.join(save_dir, f"im_{fname}")
                 cv2.imwrite(savepath, imgs[i])

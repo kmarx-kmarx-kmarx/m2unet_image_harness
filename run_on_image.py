@@ -71,7 +71,7 @@ def inference_on_image_stack(images, model, sz=1024, device=None, threshold_set=
 
     # convert back to images
     # preallocate memory for image stack
-    output = np.zeros(images.shape, dtype=bool)
+    output = np.zeros((images.shape[0],images.shape[1],images.shape[2]) , dtype=bool)
     t_full = [0] * n_im
     for i in range(n_slices):
         x = i % nx
@@ -157,7 +157,7 @@ def inference_on_sized_image_stack(images, model, device=None, threshold_set=128
     if device == None:
         device = torch.device("cpu")
     # initialize result array
-    outputs = np.zeros(images.shape, dtype=bool)
+    outputs = np.zeros((images.shape[0], images.shape[1], images.shape[2]), dtype=bool)
     times = [0]*images.shape[0]
     # loop through images
     for i, img in enumerate(tqdm(images)):
@@ -177,6 +177,6 @@ def inference_on_sized_image_stack(images, model, device=None, threshold_set=128
         output = np.clip(results[0,:,:,0] * 255, 0, 255).astype('uint8')
         mask = (output > threshold_set)
         # save result
-        outputs[i,:,:,0] = mask
+        outputs[i,:,:] = mask
         times[i] = time.time()-t0
     return outputs.astype(bool), times
