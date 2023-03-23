@@ -14,8 +14,8 @@ def main():
     n_channels = 1 # set to 1 for greyscale, 3 for RGB
     model_name = "model_70_11.pth"
     save_dir = "path/to/save"
-    batch_sz = 1 # segment this many images per batch. Should be set depending on image size, hardware.
-    n_im = 1    # total number of images to segment. Set to 0 to segment all images in data_dir
+    batch_sz = 10 # segment this many images per batch. Should be set depending on image size, hardware.
+    n_im = 50   # total number of images to segment. Set to 0 to segment all images in data_dir
     run_size = 1024 # tile the images to 1024x1024 sections. Should be set depending on image size, hardware
     overlap = 16    # Amount of overlap between adjacent tiles
     randomize = False # Segment the images in random order
@@ -53,11 +53,14 @@ def main():
             t0 = time.time()
             data = np.load(images[i])
             im = data["img"]
+            if im.ndim == 2:
+                im = np.expand_dims(im, axis=2)
             mask = data["mask"]
             imgs.append(im)
             masks.append(mask)
             t_read.append(time.time()-t0)
         imgs = np.array(imgs)
+
         # get results
         results, times = inference_on_image_stack(imgs, model, device=device, sz=run_size, overlap=overlap)
         t_segm = t_segm + times
@@ -65,6 +68,7 @@ def main():
         for i, result in enumerate(results):
             t0 = time.time()
             fname = images[i+idx].split('/')[-1]
+            fname = fname.rsplit('.', 1)[0] + ".png"
             if save_pred_mask:
                 savepath = os.path.join(save_dir, f"seg_{fname}")
                 cv2.imwrite(savepath, 255*result[:,:,0])
